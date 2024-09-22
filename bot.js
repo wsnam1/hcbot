@@ -28,9 +28,9 @@ function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 7) {
+async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 72) {
     let location, details, title;
-    const pollDuration = duration * 1000; // Convert hours to millisecondsduration * 60 * 60 * 1000;
+    const pollDuration = duration * 60 * 60 * 1000; // Convert hours to milliseconds
 
     if (customData) {
         location = customData.location;
@@ -119,8 +119,24 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         updateEmbed();
     });
 
-    collector.on('end', (collected, reason) => {
+    collector.on('end', async (collected, reason) => {
         updateEmbed(true, reason);
+
+        const results = collect_poll_results(votes, vipCounts);
+
+        const summaryEmbed = new EmbedBuilder()
+            .setTitle(`Poll Results: ${title}`)
+            .setColor('#0099ff')
+            .addFields(
+                { name: 'Location', value: `[${location}](${mapUrl})` || '\u200b', inline: false },
+                { name: 'Details', value: details || '\u200b', inline: false },
+                { name: `Yes (${results.total_yes}) | VIPs (${results.total_vips})`, value: results.yes_details || '\u200b', inline: false },
+                { name: `No (${results.total_no})`, value: results.no_details || '\u200b', inline: false },
+                { name: 'Total Attendees', value: `${results.total_attendees}` || '\u200b', inline: false }
+            )
+            .setFooter({ text: 'Drive safe guys' });
+
+        await interaction.channel.send({ embeds: [summaryEmbed] });
     });
 
     function updateEmbed(ended = false, reason = '') {
@@ -160,6 +176,28 @@ async function sendReminder(interaction, votes, percentage) {
         const reminderMessage = `Reminder: ${Math.round(percentage * 100)}% of the poll duration has passed. Please vote if you haven't already!\n${nonVotedMembers.map(member => `<@${member.id}>`).join(', ')}`;
         await interaction.channel.send(reminderMessage);
     }
+}
+
+function collect_poll_results(votes, vipCounts) {
+    const yes_voters = Array.from(votes.yes).map(id => `<@${id}>`);
+    const no_voters = Array.from(votes.no).map(id => `<@${id}>`);
+
+    const yes_details = yes_voters.join(', ') || 'None';
+    const no_details = no_voters.join(', ') || 'None';
+
+    const total_vips = Array.from(vipCounts.values()).reduce((sum, count) => sum + count, 0);
+    const total_yes = votes.yes.size;
+    const total_no = votes.no.size;
+    const total_attendees = total_yes + total_vips;
+
+    return {
+        yes_details,
+        no_details,
+        total_yes,
+        total_no,
+        total_vips,
+        total_attendees
+    };
 }
 
 client.on("interactionCreate", async (interaction) => {
