@@ -8,6 +8,8 @@ const {
 } = require("discord.js");
 require("dotenv").config();
 
+const keep_alive = require('./keep_alive.js')
+
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
