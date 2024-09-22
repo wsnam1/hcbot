@@ -108,6 +108,11 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             return;
         }
 
+        collector.on('end', (collected, reason) => {
+            clearInterval(updateInterval);
+            updateEmbed(true, reason);
+        });
+
         const vote = i.customId;
         const otherVote = vote === 'yes' ? 'no' : 'yes';
 
