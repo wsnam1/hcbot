@@ -4,12 +4,14 @@
   "description": "Discord bot",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "keep-alive": "node keep_alive.js",
+    "dev": "node bot.js & node keep_alive.js"
   },
   "dependencies": {
-    "discord.js": "^14.7.1",
-    "dotenv": "^16.0.3",
-    "node-cron": "^3.0.2",
-    "express": "^4.18.2"
+    "discord.js": "^14.16.2",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "express": "^4.21.0"
   }
 }
