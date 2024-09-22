@@ -10,7 +10,7 @@ require("dotenv").config();
 const keep_alive = require('./keep_alive.js');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers],
 });
 
 const housingDetails = {
@@ -28,9 +28,9 @@ function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 72) {
+async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 7) {
     let location, details, title;
-    const pollDuration = duration * 60 * 60 * 1000; // Convert hours to milliseconds
+    const pollDuration = duration * 1000; // Convert hours to millisecondsduration * 60 * 60 * 1000;
 
     if (customData) {
         location = customData.location;
@@ -89,7 +89,10 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     const vipCounts = new Map();
 
     const collector = message.createMessageComponentCollector({ time: pollDuration });
-
+    const reminderTimes = [0.75, 0.5, 0.25];
+    reminderTimes.forEach(percentage => {
+        setTimeout(() => sendReminder(interaction, votes, percentage), pollDuration * percentage);
+    });
     collector.on('collect', async i => {
         if (i.customId === 'close') {
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
@@ -143,6 +146,19 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         }
 
         interaction.editReply({ embeds: [embed], components: [row] });
+    }
+}
+
+async function sendReminder(interaction, votes, percentage) {
+    const guild = interaction.guild;
+    const members = await guild.members.fetch();
+
+    const votedMembers = new Set([...votes.yes, ...votes.no]);
+    const nonVotedMembers = members.filter(member => !member.user.bot && !votedMembers.has(member.id));
+
+    if (nonVotedMembers.size > 0) {
+        const reminderMessage = `Reminder: ${Math.round(percentage * 100)}% of the poll duration has passed. Please vote if you haven't already!\n${nonVotedMembers.map(member => `<@${member.id}>`).join(', ')}`;
+        await interaction.channel.send(reminderMessage);
     }
 }
 
