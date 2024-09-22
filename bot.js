@@ -7,8 +7,7 @@ const {
     ButtonStyle,
 } = require("discord.js");
 require("dotenv").config();
-
-const keep_alive = require('./keep_alive.js')
+const keep_alive = require('./keep_alive.js');
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -28,9 +27,7 @@ const housingDetails = {
 function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
-
-
-
+const vipCounts = new Map();
 async function createPoll(interaction, person, isWoosungHosting = false, customData = null) {
     let location, details, title;
 
@@ -51,91 +48,87 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     }
 
     const mapUrl = getGoogleMapsUrl(location);
-
     const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(`Location: [${location}](${mapUrl})\nDetails: ${details}`)
         .setColor('#0099ff')
         .addFields(
             { name: 'Yes', value: '0', inline: true },
-            { name: 'No', value: '0', inline: true }
-        )
-
+            { name: 'No', value: '0', inline: true },
+            { name: 'Total Attendees', value: '0', inline: false }
+        );
 
     const row = new ActionRowBuilder()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('yes')
-                .setLabel('Yes')
-                .setStyle(ButtonStyle.Success),
-            new ButtonBuilder()
-                .setCustomId('no')
-                .setLabel('No')
-                .setStyle(ButtonStyle.Danger),
-            new ButtonBuilder()
-                .setCustomId('close')
-                .setLabel('Close Poll')
-                .setStyle(ButtonStyle.Secondary)
-
+            new ButtonBuilder().setCustomId('yes').setLabel('Yes').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('no').setLabel('No').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('bringvip').setLabel('Bring VIP').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('close').setLabel('Close Poll').setStyle(ButtonStyle.Secondary)
         );
 
     const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
-
     const votes = { yes: new Set(), no: new Set() };
-    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 5 days in milliseconds
+    const vipCounts = new Map();
+    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 3 days
     const endTime = Date.now() + pollDuration;
 
     const collector = message.createMessageComponentCollector({ time: pollDuration });
 
-    const updateInterval = setInterval(() => {
-        if (Date.now() < endTime) {
-            updateEmbed();
-        } else {
-            clearInterval(updateInterval);
-            collector.stop();
-        }
-    }, 1000); // Update every second
-
     collector.on('collect', async i => {
         if (i.customId === 'close') {
-            // Check if the user has permission to close the poll (e.g., poll creator or admin)
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
                 await i.reply({ content: 'Poll closed by admin.', ephemeral: true });
                 collector.stop('closed');
             } else {
                 await i.reply({ content: 'You do not have permission to close this poll.', ephemeral: true });
             }
-            return;
+        } else if (i.customId === 'bringvip') {
+            await i.showModal({
+                customId: 'vipModal',
+                title: 'Bring VIP',
+                components: [{
+                    type: 1,
+                    components: [{
+                        type: 4,
+                        custom_id: 'vipCount',
+                        label: 'How many VIPs are you bringing?',
+                        style: 1,
+                        min_length: 1,
+                        max_length: 2,
+                        placeholder: 'Enter a number',
+                        required: true
+                    }]
+                }]
+            });
+        } else {
+            const vote = i.customId;
+            const otherVote = vote === 'yes' ? 'no' : 'yes';
+            votes[vote].add(i.user.id);
+            votes[otherVote].delete(i.user.id);
+            if (vote === 'no') vipCounts.delete(i.user.id);
+            await i.reply({ content: `You voted ${vote}!`, ephemeral: true });
         }
-
-        collector.on('end', (collected, reason) => {
-            clearInterval(updateInterval);
-            updateEmbed(true, reason);
-        });
-
-        const vote = i.customId;
-        const otherVote = vote === 'yes' ? 'no' : 'yes';
-
-        if (votes.yes.has(i.user.id) || votes.no.has(i.user.id)) {
-            await i.reply({ content: 'You have already voted!', ephemeral: true });
-            return;
-        }
-
-        votes[vote].add(i.user.id);
-        votes[otherVote].delete(i.user.id);
-
-        await i.reply({ content: `You voted ${vote}!`, ephemeral: true });
-
         updateEmbed();
     });
 
-    function updateEmbed(ended = false, reason = '') {
-        const yesVoters = Array.from(votes.yes).map(id => `<@${id}>`).join(', ') || 'None';
-        const noVoters = Array.from(votes.no).map(id => `<@${id}>`).join(', ') || 'None';
+    collector.on('end', (collected, reason) => {
+        updateEmbed(true, reason);
+    });
 
-        embed.spliceFields(0, 2,
-            { name: `Yes (${votes.yes.size})`, value: yesVoters, inline: false },
-            { name: `No (${votes.no.size})`, value: noVoters, inline: false }
+    function updateEmbed(ended = false, reason = '') {
+        const yesVoters = Array.from(votes.yes).map(id => {
+            const vipCount = vipCounts.get(id) || 0;
+            return `<@${id}>${vipCount > 0 ? ` (+${vipCount} VIP)` : ''}`;
+        }).join(', ') || 'None';
+        const noVoters = Array.from(votes.no).map(id => `<@${id}>`).join(', ') || 'None';
+        const totalVips = Array.from(vipCounts.values()).reduce((sum, count) => sum + count, 0);
+        const totalYes = votes.yes.size;
+        const totalAttendees = totalYes + totalVips;
+
+        embed.setFields(
+            { name: `Yes (${totalYes}) | VIPs (${totalVips})`, value: yesVoters, inline: false },
+            { name: `No (${votes.no.size})`, value: noVoters, inline: false },
+            { name: `Total Attendees`, value: `${totalAttendees}`, inline: false }
         );
 
         if (ended) {
@@ -152,29 +145,37 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
 
         interaction.editReply({ embeds: [embed], components: [row] });
     }
+
+    setInterval(updateEmbed, 1000);
 }
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
-
-    const { commandName } = interaction;
-
-    try {
-        if (commandName === "karis" || commandName === "jae") {
-            await createPoll(interaction, commandName);
-        } else if (commandName === "custompoll") {
-            const name = interaction.options.getString('name');
-            const location = interaction.options.getString('location');
-            const details = interaction.options.getString('details');
-
-            await createPoll(interaction, null, false, { name, location, details });
-        } else if (commandName === "woosung") {
-            const host = interaction.options.getString('host');
-            await createPoll(interaction, host, true);
+    if (interaction.isCommand()) {
+        const { commandName } = interaction;
+        try {
+            if (commandName === "karis" || commandName === "jae") {
+                await createPoll(interaction, commandName);
+            } else if (commandName === "custompoll") {
+                const name = interaction.options.getString('name');
+                const location = interaction.options.getString('location');
+                const details = interaction.options.getString('details');
+                await createPoll(interaction, null, false, { name, location, details });
+            } else if (commandName === "woosung") {
+                const host = interaction.options.getString('host');
+                await createPoll(interaction, host, true);
+            }
+        } catch (error) {
+            console.error('Error creating poll:', error);
+            await interaction.reply({ content: 'An error occurred while creating the poll.', ephemeral: true });
         }
-    } catch (error) {
-        console.error('Error creating poll:', error);
-        await interaction.reply({ content: 'An error occurred while creating the poll.', ephemeral: true });
+    } else if (interaction.isModalSubmit() && interaction.customId === 'vipModal') {
+        const vipCount = parseInt(interaction.fields.getTextInputValue('vipCount'));
+        if (isNaN(vipCount) || vipCount < 0) {
+            await interaction.reply({ content: 'Please enter a valid number.', ephemeral: true });
+            return;
+        }
+        // You'll need to implement logic here to update the poll with the VIP count
+        await interaction.reply({ content: `You're bringing ${vipCount} VIP(s)!`, ephemeral: true });
     }
 });
 
