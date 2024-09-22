@@ -1,7 +1,7 @@
 const https = require('https');
 const cron = require('node-cron');
 
-const RENDER_URL = 'https://your-app-name.onrender.com'; // Replace with your actual Render URL
+const RENDER_URL = 'https://hcbot.onrender.com'; // Replace with your actual Render URL
 
 function pingServer() {
     https.get(RENDER_URL, (res) => {
