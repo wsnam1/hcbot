@@ -73,7 +73,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
 
     const votes = { yes: new Set(), no: new Set() };
-    const pollDuration = 10 * 1000; // 10 seconds in milliseconds
+    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 5 days in milliseconds
     const endTime = Date.now() + pollDuration;
 
     const collector = message.createMessageComponentCollector({ time: pollDuration });
