@@ -36,14 +36,16 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         location = customData.location;
         details = customData.details || 'No additional details provided';
         title = `Custom Poll: ${customData.name}`;
-    } else if (isWoosungHosting) {
+    } else if (isWoosungHosting && person) {
         location = housingDetails[person].location;
         details = housingDetails[person].details;
         title = `Hosted by Woosung at ${person.charAt(0).toUpperCase() + person.slice(1)}'s`;
-    } else {
+    } else if (person) {
         location = housingDetails[person].location;
         details = housingDetails[person].details;
         title = `HC Poll for ${person.charAt(0).toUpperCase() + person.slice(1)}`;
+    } else {
+        throw new Error('Invalid poll parameters');
     }
 
     const mapUrl = getGoogleMapsUrl(location);
@@ -139,17 +141,22 @@ client.on("interactionCreate", async (interaction) => {
 
     const { commandName } = interaction;
 
-    if (commandName === "karis" || commandName === "jae") {
-        await createPoll(interaction, commandName);
-    } else if (commandName === "custompoll") {
-        const name = interaction.options.getString('name');
-        const location = interaction.options.getString('location');
-        const details = interaction.options.getString('details');
+    try {
+        if (commandName === "karis" || commandName === "jae") {
+            await createPoll(interaction, commandName);
+        } else if (commandName === "custompoll") {
+            const name = interaction.options.getString('name');
+            const location = interaction.options.getString('location');
+            const details = interaction.options.getString('details');
 
-        await createPoll(interaction, null, { name, location, details });
-    } else if (commandName === "woosung"){
-        const host = interaction.options.getString('host');
-        await createPoll(interaction, host, true);
+            await createPoll(interaction, null, false, { name, location, details });
+        } else if (commandName === "woosung") {
+            const host = interaction.options.getString('host');
+            await createPoll(interaction, host, true);
+        }
+    } catch (error) {
+        console.error('Error creating poll:', error);
+        await interaction.reply({ content: 'An error occurred while creating the poll.', ephemeral: true });
     }
 });
 
