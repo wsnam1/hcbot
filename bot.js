@@ -28,8 +28,9 @@ function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-async function createPoll(interaction, person, isWoosungHosting = false, customData = null) {
+async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 72) {
     let location, details, title;
+    const pollDuration = duration * 60 * 60 * 1000; // Convert hours to milliseconds
 
     if (customData) {
         location = customData.location;
@@ -48,6 +49,8 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     }
 
     const mapUrl = getGoogleMapsUrl(location);
+    const endTime = Date.now() + pollDuration;
+    const endDate = new Date(endTime).toLocaleString();
 
     const embed = new EmbedBuilder()
         .setTitle(title)
@@ -57,7 +60,8 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             { name: 'Yes', value: '0', inline: true },
             { name: 'No', value: '0', inline: true },
             { name: 'Total Attendees', value: '0', inline: false }
-        );
+        )
+        .setFooter({ text: `Poll closes on ${endDate}` });
 
     const row = new ActionRowBuilder()
         .addComponents(
@@ -83,8 +87,6 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
 
     const votes = { yes: new Set(), no: new Set() };
     const vipCounts = new Map();
-    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-    const endTime = Date.now() + pollDuration;
 
     const collector = message.createMessageComponentCollector({ time: pollDuration });
 
@@ -92,7 +94,6 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         if (i.customId === 'close') {
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
                 await i.reply({ content: 'Poll closed by admin.', ephemeral: true });
-
                 collector.stop('closed');
             } else {
                 await i.reply({ content: 'You do not have permission to close this poll.', ephemeral: true });
@@ -139,19 +140,10 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         if (ended) {
             embed.setFooter({ text: reason === 'closed' ? 'Poll closed by admin' : 'Poll closed' });
             row.components.forEach(button => button.setDisabled(true));
-        } else {
-            const remainingTime = Math.max(0, endTime - Date.now());
-            const days = Math.floor(remainingTime / (24 * 60 * 60 * 1000));
-            const hours = Math.floor((remainingTime % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-            const minutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
-            const seconds = Math.floor((remainingTime % (60 * 1000)) / 1000);
-            embed.setFooter({ text: `Poll closes in ${days}d ${hours}h ${minutes}m ${seconds}s` });
         }
 
         interaction.editReply({ embeds: [embed], components: [row] });
     }
-
-    setInterval(updateEmbed, 1000);
 }
 
 client.on("interactionCreate", async (interaction) => {
@@ -161,15 +153,18 @@ client.on("interactionCreate", async (interaction) => {
 
     try {
         if (commandName === "karis" || commandName === "jae") {
-            await createPoll(interaction, commandName);
+            const duration = interaction.options.getInteger('duration') || 72; // Default to 72 hours if not specified
+            await createPoll(interaction, commandName, false, null, duration);
         } else if (commandName === "custompoll") {
             const name = interaction.options.getString('name');
             const location = interaction.options.getString('location');
             const details = interaction.options.getString('details');
-            await createPoll(interaction, null, false, { name, location, details });
+            const duration = interaction.options.getInteger('duration') || 72; // Default to 72 hours if not specified
+            await createPoll(interaction, null, false, { name, location, details }, duration);
         } else if (commandName === "woosung") {
             const host = interaction.options.getString('host');
-            await createPoll(interaction, host, true);
+            const duration = interaction.options.getInteger('duration') || 72; // Default to 72 hours if not specified
+            await createPoll(interaction, host, true, null, duration);
         }
     } catch (error) {
         console.error('Error creating poll:', error);

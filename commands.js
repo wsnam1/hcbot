@@ -2,11 +2,19 @@ const { SlashCommandBuilder } = require("discord.js");
 
 const karisCommand = new SlashCommandBuilder()
     .setName("karis")
-    .setDescription("Create a poll for Karis's housing");
+    .setDescription("Create a poll for Karis's housing")
+    .addIntegerOption(option =>
+        option.setName('duration')
+            .setDescription('Poll duration in hours (default is 72 hours)')
+            .setRequired(false));
 
 const jaeCommand = new SlashCommandBuilder()
     .setName("jae")
-    .setDescription("Create a poll for Jae's housing");
+    .setDescription("Create a poll for Jae's housing")
+    .addIntegerOption(option =>
+        option.setName('duration')
+            .setDescription('Poll duration in hours (default is 72 hours)')
+            .setRequired(false));
 
 const woosungCommand = new SlashCommandBuilder()
     .setName('woosung')
@@ -18,7 +26,11 @@ const woosungCommand = new SlashCommandBuilder()
             .addChoices(
                 { name: 'Karis', value: 'karis' },
                 { name: 'Jae', value: 'jae' }
-            ));
+            ))
+    .addIntegerOption(option =>
+        option.setName('duration')
+            .setDescription('Poll duration in hours (default is 72 hours)')
+            .setRequired(false));
 
 const customPollCommand = new SlashCommandBuilder()
     .setName("custompoll")
@@ -40,7 +52,10 @@ const customPollCommand = new SlashCommandBuilder()
             .setName("details")
             .setDescription("Additional details for the poll")
             .setRequired(false),
-    );
+    )
+    .addIntegerOption(option =>
+        option.setName('duration')
+            .setDescription('Poll duration in hours (default is 72 hours)')
+            .setRequired(false));
 
 module.exports = [karisCommand, jaeCommand, woosungCommand, customPollCommand];
-
