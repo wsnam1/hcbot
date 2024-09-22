@@ -71,7 +71,12 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             new ButtonBuilder()
                 .setCustomId('no')
                 .setLabel('No')
-                .setStyle(ButtonStyle.Danger)
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('close')
+                .setLabel('Close Poll')
+                .setStyle(ButtonStyle.Secondary)
+
         );
 
     const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
@@ -92,6 +97,17 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     }, 1000); // Update every second
 
     collector.on('collect', async i => {
+        if (i.customId === 'close') {
+            // Check if the user has permission to close the poll (e.g., poll creator or admin)
+            if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
+                await i.reply({ content: 'Poll closed by admin.', ephemeral: true });
+                collector.stop('closed');
+            } else {
+                await i.reply({ content: 'You do not have permission to close this poll.', ephemeral: true });
+            }
+            return;
+        }
+
         const vote = i.customId;
         const otherVote = vote === 'yes' ? 'no' : 'yes';
 
@@ -108,12 +124,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         updateEmbed();
     });
 
-    collector.on('end', () => {
-        clearInterval(updateInterval);
-        updateEmbed(true);
-    });
-
-    function updateEmbed(ended = false) {
+    function updateEmbed(ended = false, reason = '') {
         const yesVoters = Array.from(votes.yes).map(id => `<@${id}>`).join(', ') || 'None';
         const noVoters = Array.from(votes.no).map(id => `<@${id}>`).join(', ') || 'None';
 
@@ -123,7 +134,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         );
 
         if (ended) {
-            embed.setFooter({ text: 'Poll closed' });
+            embed.setFooter({ text: reason === 'closed' ? 'Poll closed by admin' : 'Poll closed' });
             row.components.forEach(button => button.setDisabled(true));
         } else {
             const remainingTime = Math.max(0, endTime - Date.now());
