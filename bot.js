@@ -27,7 +27,7 @@ const housingDetails = {
 function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
-const vipCounts = new Map();
+
 async function createPoll(interaction, person, isWoosungHosting = false, customData = null) {
     let location, details, title;
 
@@ -48,6 +48,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     }
 
     const mapUrl = getGoogleMapsUrl(location);
+
     const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(`Location: [${location}](${mapUrl})\nDetails: ${details}`)
@@ -60,16 +61,29 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
 
     const row = new ActionRowBuilder()
         .addComponents(
-            new ButtonBuilder().setCustomId('yes').setLabel('Yes').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('no').setLabel('No').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('bringvip').setLabel('Bring VIP').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('close').setLabel('Close Poll').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder()
+                .setCustomId('yes')
+                .setLabel('Yes')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('no')
+                .setLabel('No')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('vip')
+                .setLabel('VIP')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('close')
+                .setLabel('Close Poll')
+                .setStyle(ButtonStyle.Secondary)
         );
 
     const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+
     const votes = { yes: new Set(), no: new Set() };
     const vipCounts = new Map();
-    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 3 days
+    const pollDuration = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
     const endTime = Date.now() + pollDuration;
 
     const collector = message.createMessageComponentCollector({ time: pollDuration });
@@ -78,28 +92,18 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
         if (i.customId === 'close') {
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
                 await i.reply({ content: 'Poll closed by admin.', ephemeral: true });
+
                 collector.stop('closed');
             } else {
                 await i.reply({ content: 'You do not have permission to close this poll.', ephemeral: true });
             }
-        } else if (i.customId === 'bringvip') {
-            await i.showModal({
-                customId: 'vipModal',
-                title: 'Bring VIP',
-                components: [{
-                    type: 1,
-                    components: [{
-                        type: 4,
-                        custom_id: 'vipCount',
-                        label: 'How many VIPs are you bringing?',
-                        style: 1,
-                        min_length: 1,
-                        max_length: 2,
-                        placeholder: 'Enter a number',
-                        required: true
-                    }]
-                }]
-            });
+        } else if (i.customId === 'vip') {
+            const currentVips = vipCounts.get(i.user.id) || 0;
+            const newVipCount = currentVips + 1;
+            vipCounts.set(i.user.id, newVipCount);
+            votes.yes.add(i.user.id);
+            votes.no.delete(i.user.id);
+            await i.reply({ content: `You're now bringing ${newVipCount} VIP(s)!`, ephemeral: true });
         } else {
             const vote = i.customId;
             const otherVote = vote === 'yes' ? 'no' : 'yes';
@@ -121,6 +125,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             return `<@${id}>${vipCount > 0 ? ` (+${vipCount} VIP)` : ''}`;
         }).join(', ') || 'None';
         const noVoters = Array.from(votes.no).map(id => `<@${id}>`).join(', ') || 'None';
+
         const totalVips = Array.from(vipCounts.values()).reduce((sum, count) => sum + count, 0);
         const totalYes = votes.yes.size;
         const totalAttendees = totalYes + totalVips;
@@ -150,32 +155,25 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
 }
 
 client.on("interactionCreate", async (interaction) => {
-    if (interaction.isCommand()) {
-        const { commandName } = interaction;
-        try {
-            if (commandName === "karis" || commandName === "jae") {
-                await createPoll(interaction, commandName);
-            } else if (commandName === "custompoll") {
-                const name = interaction.options.getString('name');
-                const location = interaction.options.getString('location');
-                const details = interaction.options.getString('details');
-                await createPoll(interaction, null, false, { name, location, details });
-            } else if (commandName === "woosung") {
-                const host = interaction.options.getString('host');
-                await createPoll(interaction, host, true);
-            }
-        } catch (error) {
-            console.error('Error creating poll:', error);
-            await interaction.reply({ content: 'An error occurred while creating the poll.', ephemeral: true });
+    if (!interaction.isCommand()) return;
+
+    const { commandName } = interaction;
+
+    try {
+        if (commandName === "karis" || commandName === "jae") {
+            await createPoll(interaction, commandName);
+        } else if (commandName === "custompoll") {
+            const name = interaction.options.getString('name');
+            const location = interaction.options.getString('location');
+            const details = interaction.options.getString('details');
+            await createPoll(interaction, null, false, { name, location, details });
+        } else if (commandName === "woosung") {
+            const host = interaction.options.getString('host');
+            await createPoll(interaction, host, true);
         }
-    } else if (interaction.isModalSubmit() && interaction.customId === 'vipModal') {
-        const vipCount = parseInt(interaction.fields.getTextInputValue('vipCount'));
-        if (isNaN(vipCount) || vipCount < 0) {
-            await interaction.reply({ content: 'Please enter a valid number.', ephemeral: true });
-            return;
-        }
-        // You'll need to implement logic here to update the poll with the VIP count
-        await interaction.reply({ content: `You're bringing ${vipCount} VIP(s)!`, ephemeral: true });
+    } catch (error) {
+        console.error('Error creating poll:', error);
+        await interaction.reply({ content: 'An error occurred while creating the poll.', ephemeral: true });
     }
 });
 
