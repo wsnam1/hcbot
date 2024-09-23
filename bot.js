@@ -40,8 +40,9 @@ const housingDetails = {
 function getGoogleMapsUrl(address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
-
 async function createPoll(interaction, person, isWoosungHosting = false, customData = null, duration = 72) {
+    await interaction.deferReply();
+
     let location, details, title;
     const pollDuration = duration * 60 * 60 * 1000; // Convert hours to milliseconds
 
@@ -96,7 +97,8 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
                 .setStyle(ButtonStyle.Secondary)
         );
 
-    const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+    const message = await interaction.editReply({ embeds: [embed], components: [row], fetchReply: true });
+    const messageId = message.id;
 
     const votes = { yes: new Set(), no: new Set() };
     const vipCounts = new Map();
@@ -106,6 +108,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     reminderTimes.forEach(percentage => {
         setTimeout(() => sendReminder(interaction, votes, percentage), pollDuration * percentage);
     });
+
     collector.on('collect', async i => {
         if (i.customId === 'close') {
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
@@ -129,11 +132,11 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             if (vote === 'no') vipCounts.delete(i.user.id);
             await i.reply({ content: `You voted ${vote}!`, ephemeral: true });
         }
-        updateEmbed();
+        await updateEmbed();
     });
 
     collector.on('end', async (collected, reason) => {
-        updateEmbed(true, reason);
+        await updateEmbed(true, reason);
 
         const results = collect_poll_results(votes, vipCounts);
 
@@ -149,10 +152,10 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             )
             .setFooter({ text: 'Drive safe guys' });
 
-        await interaction.channel.send({ embeds: [summaryEmbed] });
+        await interaction.followUp({ embeds: [summaryEmbed] });
     });
 
-    function updateEmbed(ended = false, reason = '') {
+    async function updateEmbed(ended = false, reason = '') {
         const yesVoters = Array.from(votes.yes).map(id => {
             const vipCount = vipCounts.get(id) || 0;
             return `<@${id}>${vipCount > 0 ? ` (+${vipCount} VIP)` : ''}`;
@@ -174,7 +177,12 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             row.components.forEach(button => button.setDisabled(true));
         }
 
-        interaction.editReply({ embeds: [embed], components: [row] });
+        try {
+            await interaction.channel.messages.edit(messageId, { embeds: [embed], components: [row] });
+        } catch (error) {
+            console.error('Error updating embed:', error);
+            await interaction.followUp({ embeds: [embed], components: [row] });
+        }
     }
 }
 
