@@ -112,8 +112,9 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     collector.on('collect', async i => {
         if (i.customId === 'close') {
             if (i.user.id === interaction.user.id || i.member.permissions.has('ADMINISTRATOR')) {
-                await i.reply({ content: 'Poll closed by admin.', ephemeral: true });
+                await i.deferUpdate();
                 collector.stop('closed');
+                await updateEmbed(true, 'closed');
             } else {
                 await i.reply({ content: 'You do not have permission to close this poll.', ephemeral: true });
             }
@@ -136,7 +137,9 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
     });
 
     collector.on('end', async (collected, reason) => {
-        await updateEmbed(true, reason);
+        if (reason !== 'closed') {
+            await updateEmbed(true, reason);
+        }
 
         const results = collect_poll_results(votes, vipCounts);
 
@@ -152,7 +155,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             )
             .setFooter({ text: 'Drive safe guys' });
 
-        await interaction.followUp({ embeds: [summaryEmbed] });
+        await interaction.channel.send({ embeds: [summaryEmbed] });
     });
 
     async function updateEmbed(ended = false, reason = '') {
@@ -181,7 +184,7 @@ async function createPoll(interaction, person, isWoosungHosting = false, customD
             await interaction.channel.messages.edit(messageId, { embeds: [embed], components: [row] });
         } catch (error) {
             console.error('Error updating embed:', error);
-            await interaction.followUp({ embeds: [embed], components: [row] });
+            await interaction.channel.send({ embeds: [embed], components: [row] });
         }
     }
 }
