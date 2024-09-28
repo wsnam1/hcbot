@@ -9,9 +9,10 @@
     "dev": "node bot.js & node keep_alive.js"
   },
   "dependencies": {
+    "axios": "^1.7.7",
     "discord.js": "^14.16.2",
     "dotenv": "^16.4.5",
-    "node-cron": "^3.0.3",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "node-cron": "^3.0.3"
   }
 }
